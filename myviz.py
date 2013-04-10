@@ -39,7 +39,7 @@ class MyViz( QWidget ):
 
         reader = rviz.YamlConfigReader()
         config = rviz.Config()
-        reader.readFile( config, "/home/devesh/Desktop/abc4.rviz" )
+        reader.readFile( config, "config.rviz" )
         self.frame.load( config )
 
         self.setWindowTitle( config.mapGetChild( "Title" ).getValue() )
@@ -215,7 +215,7 @@ class MyViz( QWidget ):
                 if self.calculate_direction(event) == 0:
                     twist = Twist()
 
-                    twist.linear.x = 1.4
+                    twist.linear.x = 0.9
                     self.publisher.publish(twist)
 
                     # rospy.sleep(0.15)
@@ -237,7 +237,7 @@ class MyViz( QWidget ):
                         self.rotating = False
                     else:
                         twist = Twist()
-                        twist.angular.z = 0.7
+                        twist.angular.z = 0.4
                         self.publisher.publish(twist)
                         self.rotating = True
                 self.take_action = False
@@ -250,7 +250,7 @@ class MyViz( QWidget ):
                 print "1"
                 twist = Twist()
 
-                twist.angular.z = -0.7
+                twist.angular.z = -0.4
                 self.publisher.publish(twist)
                 self.rotating = True
 
