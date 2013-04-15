@@ -219,9 +219,6 @@ class MyViz( QWidget ):
                     self.publisher.publish(twist)
 
                     # rospy.sleep(0.15)
-
-                    # twist.linear.x = 0.0
-                    # self.publisher.publish(twist)
                 self.take_action = False
             else:
                 self.take_action = True
