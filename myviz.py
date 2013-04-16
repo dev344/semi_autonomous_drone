@@ -232,6 +232,12 @@ class MyViz( QWidget ):
                         twist.angular.z = 0.0
                         self.publisher.publish(twist)
                         self.rotating = False
+
+                        twist.linear.z = -1.0
+                        self.publisher.publish(twist)
+                        rospy.sleep(0.15)
+                        twist.linear.z = 0.0
+                        self.publisher.publish(twist)
                     else:
                         twist = Twist()
                         twist.angular.z = 0.4
