@@ -1,0 +1,3 @@
+- Using Focal Length and finding the pitch to be inclined at.
+- Bringing in PID control to maintain a pitch.
+- Finding circling speeds and time based on radius.
