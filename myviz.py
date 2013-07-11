@@ -8,6 +8,7 @@ from gazebo.srv import GetModelState
 from tf.transformations import euler_from_quaternion
 import rospy
 from math import atan, degrees
+from std_msgs.msg import String
 
 import sys
 
@@ -28,7 +29,7 @@ class MyViz( QWidget ):
         self.image_height = 0
         self.image_width = 0
         self.image_step = 0
-        self.rotating = False
+        self.in_motion = False
 
         self.take_action = True
         QWidget.__init__(self)
@@ -61,8 +62,7 @@ class MyViz( QWidget ):
         layout.addWidget( self.frame )
         
         self.setLayout( layout )
-
-        self.publisher = rospy.Publisher('cmd_vel', Twist)
+        self.publisher = rospy.Publisher('drone_ctrl_directions', String)
         rospy.init_node('Controller_Interface', anonymous=True)
         self.listen()
 
@@ -84,44 +84,18 @@ class MyViz( QWidget ):
             print "ERRRORRRR"
             return [-1, -1, -1]
 
-
-    def calculate_direction(self, event):
-        # Do some image processing and then 
-        # decide where to go.
-
-        found_object = 0
+    def image_processing_func(self, event):
         print event.x(), event.y()
         print self.image_height
         print self.image_width
         print self.image_step
 
         image_temp = self.image
+        found_object = 0
 
         print type(self.image[self.image_step*event.y() + event.x()*3])
         average_color = self.find_average_color(image_temp, event.x(), event.y())
 
-        # Find position of your bot.
-        rospy.wait_for_service('/gazebo/get_model_state')
-        bot_orientation = [-1, -1, -1]
-        try:
-            gms = rospy.ServiceProxy('/gazebo/get_model_state', GetModelState)
-            resp1 = gms('quadrotor', 'world')
-            print resp1.pose
-            orientation = resp1.pose.orientation
-            quaternion = [orientation.x, orientation.y, orientation.z, orientation.w]
-            bot_orientation = euler_from_quaternion(quaternion)
-        except rospy.ServiceException, e:
-            print "Service call failed: %s"%e
-
-        # Find the direction you are facing
-
-        print "bot orientation is ", bot_orientation
-        print average_color
-        yaw = bot_orientation[2]
-        if yaw < 0:
-            yaw += 6.28
-
-        target_orientation = -1
         target_x = 0
         target_y = 0
 
@@ -151,74 +125,35 @@ class MyViz( QWidget ):
             target_y = -3
             found_object = 1
 
-        if found_object == 1:
-            if resp1.pose.position.x == target_x:
-                if resp1.pose.position.y > target_y:
-                    target_orientation = 3.14/2.0
-                else:
-                    target_orientation = -3.14/2.0
-            else:
-                target_orientation = atan( (target_y-resp1.pose.position.y)/(target_x-resp1.pose.position.x) )
-                if target_orientation < 0 and (target_y > resp1.pose.position.y):
-                    target_orientation += 3.14
-                elif target_orientation < 0 and (target_y < resp1.pose.position.y):
-                    target_orientation += 6.28
-                elif target_orientation > 0 and (target_y < resp1.pose.position.y):
-                    target_orientation += 3.14
-
-            print target_orientation
-            print degrees(target_orientation)
-
-            while abs(yaw - target_orientation) > 0.1:
-                twist = Twist()
-                if target_orientation < yaw:
-                    twist.angular.z = -1.2
-                    self.publisher.publish(twist)
-
-                    rospy.sleep(0.04)
-
-                    twist.angular.z = 0.0
-                    self.publisher.publish(twist)
-                else:
-                    twist.angular.z = 1.2
-                    self.publisher.publish(twist)
-
-                    rospy.sleep(0.04)
-
-                    twist.angular.z = 0.0
-                    self.publisher.publish(twist)
-
-                try:
-                    resp1 = gms('quadrotor', 'world')
-                    orientation = resp1.pose.orientation
-                    quaternion = [orientation.x, orientation.y, orientation.z, orientation.w]
-                    bot_orientation = euler_from_quaternion(quaternion)
-                    yaw = bot_orientation[2]
-                    if yaw < 0:
-                        yaw += 6.28
-                    print "Yaw is", yaw, "and target is", target_orientation
-                except rospy.ServiceException, e:
-                    print "Service call failed: %s"%e
-
-            twist = Twist()
-
-            twist.linear.x = 1.4
-            self.publisher.publish(twist)
-        return found_object
+        print "found_object returning = ", found_object
+        return [found_object, target_x, target_y]
 
     ## Handle GUI events
     ## ^^^^^^^^^^^^^^^^^
     def eventFilter(self, source, event):
+
+        found_object = 0
+        target_x = 0
+        target_y = 0
+        if (event.type() == QEvent.MouseButtonDblClick or 
+                event.type() == QEvent.MouseButtonPress):
+            found_object, target_x, target_y = self.image_processing_func(event)
+            print "found object returned = ", found_object
+
+        # 'take_action' variable is being used because
+        # every event is being captured twice 
+        # and hence the filter is being called twice.
         if (event.type() == QEvent.MouseButtonDblClick):
-            print "double click"
             if self.take_action:
-                if self.calculate_direction(event) == 0:
-                    twist = Twist()
+                ctrl_direction = "MouseButtonDblClick " + str(found_object) + \
+                                 " " + str(target_x) + " " + str(target_y)
+                self.publisher.publish(String(ctrl_direction))
 
-                    twist.linear.x = 0.9
-                    self.publisher.publish(twist)
+                if found_object == 0:
+                    self.in_motion = True
+                else:
+                    self.in_motion = False
 
-                    # rospy.sleep(0.15)
                 self.take_action = False
             else:
                 self.take_action = True
@@ -226,23 +161,15 @@ class MyViz( QWidget ):
         elif (event.type() == QEvent.MouseButtonPress and
             event.button() == Qt.LeftButton):
             if self.take_action:
-                if self.calculate_direction(event) == 0:
-                    if self.rotating:
-                        twist = Twist()
-                        twist.angular.z = 0.0
-                        self.publisher.publish(twist)
-                        self.rotating = False
+                ctrl_direction = "LeftButton " + str(found_object) + \
+                                 " " + str(target_x) + " " + str(target_y) + \
+                                 " " + str(self.in_motion)
+                self.publisher.publish(String(ctrl_direction))
 
-                        twist.linear.z = -1.0
-                        self.publisher.publish(twist)
-                        rospy.sleep(0.15)
-                        twist.linear.z = 0.0
-                        self.publisher.publish(twist)
-                    else:
-                        twist = Twist()
-                        twist.angular.z = 0.4
-                        self.publisher.publish(twist)
-                        self.rotating = True
+                if self.in_motion:
+                    self.in_motion = False
+                else:
+                    self.in_motion = True
                 self.take_action = False
             else:
                 self.take_action = True
@@ -251,11 +178,19 @@ class MyViz( QWidget ):
             event.button() == Qt.RightButton):
             if self.take_action:
                 print "1"
-                twist = Twist()
+                ctrl_direction = "RightButton " + str(found_object) + \
+                                 " " + str(target_x) + " " + str(target_y)
+                if found_object:
+                    # Make a Circle.
+                    # self.circle_object(target_x, target_y)
+                    self.publisher.publish(String(ctrl_direction))
+                else:
+                    twist = Twist()
 
-                twist.angular.z = -0.4
-                self.publisher.publish(twist)
-                self.rotating = True
+                    twist.angular.z = -0.4
+                    # self.publisher.publish(twist)
+                    self.publisher.publish(String(ctrl_direction))
+                    self.in_motion = True
 
                 self.take_action = False
             else:
