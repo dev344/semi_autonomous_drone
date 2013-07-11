@@ -65,23 +65,18 @@ class Controller():
         # Turn towards the object.
         while abs(yaw - target_orientation) > 0.1:
             twist = Twist()
-            if target_orientation < yaw:
-                twist.angular.z = -1.2
-                self.publisher.publish(twist)
+            factor1 = -1 if abs(yaw - target_orientation) > 3.14 else 1
+            factor2 = -1 if yaw > target_orientation else 1
 
-                rospy.sleep(0.04)
+            factor2 *= factor1
 
-                twist.angular.z = 0.0
-                self.publisher.publish(twist)
-            else:
-                twist.angular.z = 1.2
-                self.publisher.publish(twist)
+            twist.angular.z = 1.2 * factor2
+            self.publisher.publish(twist)
 
-                rospy.sleep(0.04)
+            rospy.sleep(0.04)
 
-                twist.angular.z = 0.0
-                self.publisher.publish(twist)
-
+            twist.angular.z = 0.0
+            self.publisher.publish(twist)
             try:
                 resp1 = gms('quadrotor', 'world')
                 orientation = resp1.pose.orientation
@@ -95,16 +90,16 @@ class Controller():
                 print "Service call failed: %s"%e
 
     def circle_object(self, target_x, target_y):
-        for i in xrange(100):
+        for i in xrange(1500):
             self.turn_towards_ROI(target_x, target_y)
             twist = Twist()
             twist.linear.y = 0.9
 
             # NOTE: This value must depend on the radius of
             # the circle.
-            twist.linear.x = 0.1
+            twist.linear.x = 0.2
             self.publisher.publish(twist)
-            rospy.sleep(0.05)
+            rospy.sleep(0.01)
             twist.linear.y = 0.0
             twist.linear.x = 0.0
             self.publisher.publish(twist)
