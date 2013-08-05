@@ -5,13 +5,25 @@ from geometry_msgs.msg import Twist
 from sensor_msgs.msg import Image
 from gazebo.srv import GetModelState
 from tf.transformations import euler_from_quaternion
-from math import atan, degrees
+from math import atan, degrees, sqrt
 
 import rospy
 from std_msgs.msg import String
 
+RADIAL_CONST = 800
+
 class Controller():
+    """ Complex motion controller for the drone. """
+
     def __init__(self):
+        self.actions = {
+                'Circle': self.circleObject,
+                'Emergency': self.emergency,
+                'Takeoff': self.takeoff,
+                'Land': self.land,
+                'LToR': self.lToR,
+                'RToL': self.rToL
+        }
         rospy.init_node('drone_controller', anonymous=True)
         rospy.Subscriber("drone_ctrl_directions", String, self.callback)
         self.publisher = rospy.Publisher('cmd_vel', Twist)
@@ -22,7 +34,7 @@ class Controller():
         try:
             gms = rospy.ServiceProxy('/gazebo/get_model_state', GetModelState)
             resp1 = gms('quadrotor', 'world')
-            print resp1.pose
+            # print resp1.pose
             orientation = resp1.pose.orientation
             quaternion = [orientation.x, orientation.y, orientation.z, orientation.w]
             bot_orientation = euler_from_quaternion(quaternion)
@@ -57,10 +69,10 @@ class Controller():
             elif target_orientation > 0 and (target_y < resp1.pose.position.y):
                 target_orientation += 3.14
 
-        print "Target Details"
-        print target_orientation
-        print degrees(target_orientation)
-        print 'my yaw = ', yaw
+        # print "Target Details"
+        # print target_orientation
+        # print degrees(target_orientation)
+        # print 'my yaw = ', yaw
 
         # Turn towards the object.
         while abs(yaw - target_orientation) > 0.1:
@@ -89,68 +101,115 @@ class Controller():
             except rospy.ServiceException, e:
                 print "Service call failed: %s"%e
 
-    def circle_object(self, target_x, target_y):
-        for i in xrange(1500):
+    def emergency(self, args):
+        pass
+
+    def takeoff(self, args):
+        pass
+
+    def land(self, args):
+        pass
+
+    def lToR(self, args):
+        target_x = float(args[0])
+        target_y = float(args[1])
+
+        # Depending on distance from target, move circularly for 
+        # appropriate time.
+        bot_orientation, gms, resp1 = self.find_bot_orientation()
+        radius = sqrt((target_x - resp1.pose.position.x)**2 +
+                           (target_y - resp1.pose.position.y)**2)
+
+        print "Taking a circle of radius", radius
+        for i in xrange(int(RADIAL_CONST*radius/4)):
             self.turn_towards_ROI(target_x, target_y)
             twist = Twist()
-            twist.linear.y = 0.9
+            twist.linear.y = -1.5
 
             # NOTE: This value must depend on the radius of
             # the circle.
-            twist.linear.x = 0.2
+            twist.linear.x = 0.33
             self.publisher.publish(twist)
-            rospy.sleep(0.01)
+            rospy.sleep(0.004)
             twist.linear.y = 0.0
             twist.linear.x = 0.0
             self.publisher.publish(twist)
 
+        bot_orientation, gms, resp1 = self.find_bot_orientation()
+        radius = sqrt((target_x - resp1.pose.position.x)**2 +
+                           (target_y - resp1.pose.position.y)**2)
+
+        print "Final radius", radius
+
+    def rToL(self, args):
+        target_x = float(args[0])
+        target_y = float(args[1])
+
+        # Depending on distance from target, move circularly for 
+        # appropriate time.
+        bot_orientation, gms, resp1 = self.find_bot_orientation()
+        radius = sqrt((target_x - resp1.pose.position.x)**2 +
+                           (target_y - resp1.pose.position.y)**2)
+
+        print "Taking a circle of radius", radius
+        for i in xrange(int(RADIAL_CONST*radius/4)):
+            self.turn_towards_ROI(target_x, target_y)
+            twist = Twist()
+            twist.linear.y = 1.5
+
+            # NOTE: This value must depend on the radius of
+            # the circle.
+            twist.linear.x = 0.33
+            self.publisher.publish(twist)
+            rospy.sleep(0.004)
+            twist.linear.y = 0.0
+            twist.linear.x = 0.0
+            self.publisher.publish(twist)
+
+        bot_orientation, gms, resp1 = self.find_bot_orientation()
+        radius = sqrt((target_x - resp1.pose.position.x)**2 +
+                           (target_y - resp1.pose.position.y)**2)
+
+        print "Final radius", radius
+
+    def circleObject(self, args):
+        target_x = float(args[0])
+        target_y = float(args[1])
+
+        # Depending on distance from target, move circularly for 
+        # appropriate time.
+        bot_orientation, gms, resp1 = self.find_bot_orientation()
+        radius = sqrt((target_x - resp1.pose.position.x)**2 +
+                           (target_y - resp1.pose.position.y)**2)
+
+        print "Taking a circle of radius", radius
+        for i in xrange(int(RADIAL_CONST*radius)):
+            self.turn_towards_ROI(target_x, target_y)
+            twist = Twist()
+            twist.linear.y = 1.5
+
+            # NOTE: This value must depend on the radius of
+            # the circle.
+            twist.linear.x = 0.33
+            self.publisher.publish(twist)
+            rospy.sleep(0.004)
+            twist.linear.y = 0.0
+            twist.linear.x = 0.0
+            self.publisher.publish(twist)
+
+        bot_orientation, gms, resp1 = self.find_bot_orientation()
+        radius = sqrt((target_x - resp1.pose.position.x)**2 +
+                           (target_y - resp1.pose.position.y)**2)
+
+        print "Final radius", radius
 
     def callback(self, data):
         print rospy.get_name() + ": I heard %s" % data.data
-        ctrl_direction = data.data.split()
-        event = ctrl_direction[0]
-        found_object = int(ctrl_direction[1])
+        ctrl_command = data.data.split()
+        self.actions[ctrl_command[0]](ctrl_command[1:])
+        return
         target_x = float(ctrl_direction[2])
         target_y = float(ctrl_direction[3])
-
-        if (event == 'MouseButtonDblClick'):
-            if found_object == 0:
-                twist = Twist()
-
-                twist.linear.x = 0.9
-                self.publisher.publish(twist)
-            else:
-                print "Heading towards object"
-                self.turn_towards_ROI(target_x, target_y)
-                twist = Twist()
-
-                twist.linear.x = 1.4
-                self.publisher.publish(twist)
-
-        elif (event == 'LeftButton'):
-            rotating = ctrl_direction[4]
-            if rotating == 'True':
-                print "Halting"
-                twist = Twist()
-                twist.linear.z = -1.0
-                self.publisher.publish(twist)
-                rospy.sleep(0.05)
-                twist.linear.z = 0.0
-                self.publisher.publish(twist)
-            else:
-                print "Rotating Left"
-                twist = Twist()
-                twist.angular.z = 0.4
-                self.publisher.publish(twist)
-
-        elif (event == 'RightButton'):
-            if found_object:
-                # Make a Circle.
-                self.circle_object(target_x, target_y)
-            else:
-                twist = Twist()
-                twist.angular.z = -0.4
-                self.publisher.publish(twist)
 
     def listen(self):
         print "Started listening"
