@@ -1,11 +1,10 @@
 #!/usr/bin/env python
 
-# A basic video display window for the tutorial "Up and flying with the AR.Drone and ROS | Getting Started"
+#Inherited code from 
 # https://github.com/mikehamer/ardrone_tutorials_getting_started
 
 # This display window listens to the drone's video feeds and updates the display at regular intervals
 # It also tracks the drone's status and any connection problems, displaying them in the window's status bar
-# By default it includes no control functionality. The class can be extended to implement key or mouse listeners if required
 
 # Import the ROS libraries, and load the manifest file which through <depend package=... /> will give us access to the project dependencies
 import roslib#; roslib.load_manifest('ardrone_tutorials')

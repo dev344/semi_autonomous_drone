@@ -213,10 +213,10 @@ class EventListener(DroneVideoDisplay):
             if found_object == 1:
                 if self.circleDrawn():
                         self.publisher.publish(String("Circle " + str(target_x) + " " + str(target_y)))
-                if self.leftToRightMotion():
+                elif self.leftToRightMotion():
                         self.publisher.publish(String("LToR " + str(target_x) + " " + str(target_y)))
                         print "Moving LToR"
-                if self.rightToLeftMotion():
+                elif self.rightToLeftMotion():
                         self.publisher.publish(String("RToL " + str(target_x) + " " + str(target_y)))
                         print "Moving RToL"
 

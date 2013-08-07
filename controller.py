@@ -10,7 +10,7 @@ from math import atan, degrees, sqrt
 import rospy
 from std_msgs.msg import String
 
-RADIAL_CONST = 800
+RADIAL_CONST = 850
 
 class Controller():
     """ Complex motion controller for the drone. """
