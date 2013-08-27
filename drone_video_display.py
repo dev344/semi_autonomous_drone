@@ -29,6 +29,58 @@ CONNECTION_CHECK_PERIOD = 250 #ms
 GUI_UPDATE_PERIOD = 20 #ms
 DETECT_RADIUS = 8 # the radius of the circle drawn when a tag is detected
 
+class ClickableLabel(QtGui.QLabel):
+    '''Normal label, but emits an event if the label is left-clicked''' 
+    
+    signalClicked = QtCore.Signal()    # emitted whenever this label is left-clicked
+    
+    def __init__(self, id_num, parent=None):
+        super(ClickableLabel, self).__init__(parent)
+        self.setStyleSheet('''
+        QLabel:hover {
+        background-color: red;
+        }
+        ''')
+        self.id_num = id_num
+        self.parent = parent
+        # self.setFixedSize(self.sizeHint())
+
+    def mouseReleaseEvent(self, event):
+        if event.button() == QtCore.Qt.LeftButton:
+            print "clicked " + str(self.id_num)
+            self.parent.clickedLabel = self.id_num
+            event.ignore()
+            # self.signalClicked.emit()
+        return True
+
+class CentralWidget(QtGui.QWidget):
+
+    def __init__(self):
+        super(CentralWidget, self).__init__()
+        self.imageBox = QtGui.QLabel(self)
+        self.clickedLabel = -1
+        self.initSidePane()
+
+    def initSidePane(self):
+        """ Initialize the side pane for user interaction.
+        """
+        pixmap = QtGui.QPixmap("blank_image.png")
+        self.imageBox.setPixmap(pixmap)
+
+        self.lbls = []
+        for i in xrange(8):
+            lbl = ClickableLabel(i, self)
+            lbl.setPixmap(pixmap.scaledToHeight(80))
+            self.lbls.append(lbl)
+
+        self.lbls[0].move(640 + 0*80 + 10, 2.5*55)
+        self.lbls[1].move(640 + 1*80 + 10, 1*55)
+        self.lbls[2].move(640 + 3*80 + 10, 0*55)
+        self.lbls[3].move(640 + 5*80 + 10, 1*55)
+        self.lbls[4].move(640 + 6*80 + 10, 2.5*55)
+        self.lbls[5].move(640 + 5*80 + 10, 4*55)
+        self.lbls[6].move(640 + 3*80 + 10, 5*55)
+        self.lbls[7].move(640 + 1*80 + 10, 4*55)
 
 class DroneVideoDisplay(QtGui.QMainWindow):
     StatusMessages = {
@@ -52,8 +104,9 @@ class DroneVideoDisplay(QtGui.QMainWindow):
 
         # Setup our very basic GUI - a label which fills the whole window and holds our image
         self.setWindowTitle('AR.Drone Video Feed')
-        self.imageBox = QtGui.QLabel(self)
-        self.setCentralWidget(self.imageBox)
+        self.setGeometry(40, 40, 1290, 370)
+        self.centralWidget = CentralWidget()
+        self.setCentralWidget(self.centralWidget)
 
         # Subscribe to the /ardrone/navdata topic, of message type navdata, and call self.ReceiveNavdata when a message is received
         self.subNavdata = rospy.Subscriber('/ardrone/navdata',Navdata,self.ReceiveNavdata) 
@@ -70,6 +123,8 @@ class DroneVideoDisplay(QtGui.QMainWindow):
 
         self.circles = []
         self.points = []
+        self.qimages = []
+        self.initQimages()
         
         # Holds the status message to be displayed on the next GUI update
         self.statusMessage = ''
@@ -88,6 +143,25 @@ class DroneVideoDisplay(QtGui.QMainWindow):
         self.redrawTimer = QtCore.QTimer(self)
         self.redrawTimer.timeout.connect(self.RedrawCallback)
         self.redrawTimer.start(GUI_UPDATE_PERIOD)
+
+    def initQimages(self):
+        for i in xrange(8):
+            pixmap = QtGui.QPixmap("blank_image.png")
+            temp = {'ToDraw':False, 'image': pixmap}
+            self.qimages.append(temp)
+
+    def resetQimages(self):
+        for i in xrange(len(self.qimages)):
+            pixmap = QtGui.QPixmap("blank_image.png")
+            self.qimages[i]['ToDraw'] = True
+            self.qimages[i]['image'] = pixmap
+
+    def DrawLabels(self):
+        for i in xrange(8):
+            if self.qimages[i]['ToDraw'] == True:
+                self.centralWidget.lbls[i].setPixmap(\
+                        self.qimages[i]['image'].scaledToHeight(80))
+                self.qimages[i]['ToDraw'] = False
 
     def DrawCircles(self):
         self.tagLock.acquire()
@@ -152,8 +226,9 @@ class DroneVideoDisplay(QtGui.QMainWindow):
                 self.imageLock.release()
 
             # We could  do more processing (eg OpenCV) here if we wanted to, but for now lets just display the window.
-            self.resize(self.qimage.width(),self.qimage.height())
-            self.imageBox.setPixmap(self.qimage)
+            # self.resize(self.qimage.width(),self.qimage.height())
+            self.centralWidget.imageBox.setPixmap(self.qimage)
+            self.DrawLabels()
 
         # Update the status bar to show the current drone status & battery level
         self.statusBar().showMessage(self.statusMessage if self.connected else self.DisconnectedMessage)

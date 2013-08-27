@@ -31,10 +31,8 @@ class KeyMapping(object):
     Takeoff          = QtCore.Qt.Key.Key_T
     Land             = QtCore.Qt.Key.Key_G
     Emergency        = QtCore.Qt.Key.Key_Space
-    Draw             = QtCore.Qt.Key.Key_I
-    Draw1            = QtCore.Qt.Key.Key_O
-    Draw2            = QtCore.Qt.Key.Key_P
     Clear            = QtCore.Qt.Key.Key_C
+    Test             = QtCore.Qt.Key.Key_Z
 
 
 # Our controller definition, note that we extend the DroneVideoDisplay class
@@ -47,6 +45,7 @@ class EventListener(DroneVideoDisplay):
         self.yaw_velocity = 0 
         self.z_velocity = 0
         self.publisher = rospy.Publisher('drone_ctrl_directions', String)
+        rospy.Subscriber("interface_directions", String, self.callback)
 
 # We add a keyboard handler to the DroneVideoDisplay to react to keypresses
     def keyPressEvent(self, event):
@@ -64,13 +63,8 @@ class EventListener(DroneVideoDisplay):
             elif key == KeyMapping.Land:
                 controller.SendLand()
                 self.publisher.publish(String("Land sent"))
-            elif key == KeyMapping.Draw:
-                self.circles.append([50, 50, 4])
-                self.publisher.publish(String("Drawing circles"))
-            elif key == KeyMapping.Draw1:
-                self.circles.append([450, 450, 800])
-            elif key == KeyMapping.Draw2:
-                self.circles.append([150, 50, 400])
+            elif key == KeyMapping.Test:
+                self.publisher.publish(String("Test action"))
             elif key == KeyMapping.Clear:
                 self.points = []
                 self.circles = []
@@ -131,8 +125,7 @@ class EventListener(DroneVideoDisplay):
             controller.SetCommand(self.roll, self.pitch, self.yaw_velocity, self.z_velocity)
 
     def mousePressEvent(self, event):
-        print "Hola"
-        print event
+        pass
 
     def image_processing_func(self):
         # Find average point 
@@ -209,28 +202,44 @@ class EventListener(DroneVideoDisplay):
 
     def mouseReleaseEvent(self, event):
         if len(self.points) > 70:
+            self.resetQimages()
             found_object, target_x, target_y = self.image_processing_func()
             if found_object == 1:
                 if self.circleDrawn():
-                        self.publisher.publish(String("Circle " + str(target_x) + " " + str(target_y)))
+                        self.publisher.publish(String("Circle " + \
+                                str(target_x) + " " + str(target_y)))
                 elif self.leftToRightMotion():
-                        self.publisher.publish(String("LToR " + str(target_x) + " " + str(target_y)))
+                        self.publisher.publish(String("LToR " + \
+                                str(target_x) + " " + str(target_y)))
                         print "Moving LToR"
                 elif self.rightToLeftMotion():
-                        self.publisher.publish(String("RToL " + str(target_x) + " " + str(target_y)))
+                        self.publisher.publish(String("RToL " + \
+                                str(target_x) + " " + str(target_y)))
                         print "Moving RToL"
-
-        print "Holi"
+            self.points = []
+        
+        else:
+            if self.centralWidget.clickedLabel != -1:
+                print "label selected", self.centralWidget.clickedLabel
+                self.publisher.publish(String("Repeat " + \
+                    str(self.centralWidget.clickedLabel)))
+                self.centralWidget.clickedLabel = -1
 
     def mouseDoubleClickEvent(self, event):
         print "Yoda"
-        print event
 
     def mouseMoveEvent(self, event):
         xpos = event.pos().x()
         ypos = event.pos().y()
         print xpos, ypos
         self.points.append(event.pos())
+
+    def callback(self, data):
+        print rospy.get_name() + ": I heard %s" % data.data
+        ctrl_command = data.data.split()
+        temp = {'ToDraw':True, 'image': self.qimage}
+        self.qimages[int(ctrl_command[1])]['ToDraw'] = True
+        self.qimages[int(ctrl_command[1])]['image'] = self.qimage
 
 
 # Setup the application
