@@ -111,12 +111,16 @@ class Controller():
         print "Position chosen", args[0]
         dest = int(args[0])
         param = dest - self.history[2]
+        direction = 1
         if param < 0:
-            param += 7
+            param += 8
+        if param > 4:
+            direction = -1
+            param = 8 - param
         self.circleObject(self.history[0],
                           self.history[1], 
                           xrange(param),
-                          True, 1)
+                          True, direction)
         self.history[2] = dest
 
     def circle(self, args):
@@ -129,33 +133,45 @@ class Controller():
         # Depending on distance from target, move circularly for 
         # appropriate time.
         bot_orientation, gms, resp1 = self.find_bot_orientation()
-        radius = sqrt((target_x - resp1.pose.position.x)**2 +
+        orig_radius = sqrt((target_x - resp1.pose.position.x)**2 +
                            (target_y - resp1.pose.position.y)**2)
 
-        print "Taking a circle of radius", radius
+        print "Taking a circle of radius", orig_radius
+        orig_yaw = bot_orientation[2]
 
+        prev_yaw = orig_yaw
+        self.turn_towards_ROI(target_x, target_y)
+        rospy.sleep(1.4)
         for i in param_list:
+            yaw_diff = 0
             if not is_repeat:
                 self.publisher2.publish(String("Snap " + str(i%8)))
-            for j in xrange(int(RADIAL_CONST*radius/8)):
-                self.turn_towards_ROI(target_x, target_y)
+            while abs(yaw_diff) < (3.14/4):
                 twist = Twist()
                 twist.linear.y = direction * 1.35
 
                 # NOTE: This value must depend on the radius of
                 # the circle.
-                twist.linear.x = 0.30
+                twist.linear.x = 0.285
                 self.publisher.publish(twist)
                 rospy.sleep(0.004)
                 twist.linear.y = 0.0
                 twist.linear.x = 0.0
                 self.publisher.publish(twist)
+                yaw = self.turn_towards_ROI(target_x, target_y)
 
+                yaw_diff = yaw - prev_yaw
+                if yaw_diff > 5.3:
+                    yaw_diff -= 6.28
+                if yaw_diff < -5.3:
+                    yaw_diff += 6.28
+                
             bot_orientation, gms, resp1 = self.find_bot_orientation()
             radius = sqrt((target_x - resp1.pose.position.x)**2 +
                                (target_y - resp1.pose.position.y)**2)
             yaw = bot_orientation[2]
 
+            prev_yaw = yaw
             print "radius", radius
             print "yaw", yaw
 
@@ -249,6 +265,8 @@ class Controller():
                 # print "Yaw is", yaw, "and target is", target_orientation
             except rospy.ServiceException, e:
                 print "Service call failed: %s"%e
+        
+        return yaw
 
 
 if __name__ == '__main__':

@@ -9,6 +9,7 @@
 # Import the ROS libraries, and load the manifest file which through <depend package=... /> will give us access to the project dependencies
 import roslib#; roslib.load_manifest('ardrone_tutorials')
 import rospy
+import os
 
 # Import the two types of messages we're interested in
 from sensor_msgs.msg import Image         # for receiving the video feed
@@ -203,6 +204,8 @@ class DroneVideoDisplay(QtGui.QMainWindow):
             try:            
                     # Convert the ROS image into a QImage which we can display
                     self.qimage = QtGui.QPixmap.fromImage(QtGui.QImage(self.image.data, self.image.width, self.image.height, QtGui.QImage.Format_RGB888))
+
+                    print 'it', os.times()
 
                     if len(self.points) > 0:
                         self.DrawPoints()

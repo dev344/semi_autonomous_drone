@@ -201,7 +201,7 @@ class EventListener(DroneVideoDisplay):
             return False
 
     def mouseReleaseEvent(self, event):
-        if len(self.points) > 70:
+        if len(self.points) > 50:
             self.resetQimages()
             found_object, target_x, target_y = self.image_processing_func()
             if found_object == 1:
