@@ -22,8 +22,12 @@ class Controller():
         self.actions = {
                 'Circle': self.circle,
                 'Emergency': self.emergency,
-                'Takeoff': self.takeoff,
-                'Land': self.land,
+                'Takeoff': self.passFunc,
+                'Land': self.passFunc,
+                'D_TO_UP': self.moveForward,
+                'UP_TO_D': self.moveBackward,
+                'L_TO_R': self.moveLeft,
+                'R_TO_L': self.moveRight,
                 'LToR': self.lToR,
                 'RToL': self.rToL,
                 'Test': self.test,
@@ -39,7 +43,7 @@ class Controller():
     def emergency(self, args):
         pass
 
-    def takeoff(self, args):
+    def passFunc(self, args):
         pass
 
     def land(self, args):
@@ -87,6 +91,33 @@ class Controller():
         # to be used later on for repeat.
         self.history[2] = 0
         return [target_x, target_y]
+
+    def moveLinear(self, x_vel, y_vel):
+        for i in xrange(100):
+            twist = Twist()
+            twist.linear.x = x_vel
+            twist.linear.y = y_vel
+            self.publisher.publish(twist)
+            rospy.sleep(0.01)
+            twist.linear.y = 0.0
+            twist.linear.x = 0.0
+            self.publisher.publish(twist)
+
+    def moveForward(self, args):
+        print 'mf'
+        self.moveLinear(1, 0)
+
+    def moveBackward(self, args):
+        print 'mb'
+        self.moveLinear(-1, 0)
+
+    def moveLeft(self, args):
+        print 'ml'
+        self.moveLinear(0, 1)
+
+    def moveRight(self, args):
+        print 'mr'
+        self.moveLinear(0, -1)
 
     def lToR(self, args):
         """Function to move drone from left to right."""

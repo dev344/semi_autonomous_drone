@@ -37,6 +37,15 @@ class KeyMapping(object):
 
 # Our controller definition, note that we extend the DroneVideoDisplay class
 class EventListener(DroneVideoDisplay):
+    # Gestures
+    CIRCLE      = 0
+    L_TO_R_SEMI = 1
+    R_TO_L_SEMI = 2
+    UP_TO_D     = 3
+    D_TO_UP     = 4
+    L_TO_R      = 5
+    R_TO_L      = 6
+    
     def __init__(self):
         super(EventListener,self).__init__()
         
@@ -46,6 +55,8 @@ class EventListener(DroneVideoDisplay):
         self.z_velocity = 0
         self.publisher = rospy.Publisher('drone_ctrl_directions', String)
         rospy.Subscriber("interface_directions", String, self.callback)
+        self.createButtons()
+        self.gesture = -1
 
 # We add a keyboard handler to the DroneVideoDisplay to react to keypresses
     def keyPressEvent(self, event):
@@ -186,6 +197,30 @@ class EventListener(DroneVideoDisplay):
         else:
             return False
 
+    def lToRSemiCircle(self):
+        average_point = QtCore.QPoint(0, 0)
+        for point in self.points:
+            average_point += point
+        average_point /= len(self.points)
+        print "Average point is", average_point.x(), average_point.y()
+        if self.leftToRightMotion and \
+                self.points[-1].y() > average_point.y() + 20:
+                    return True
+        else:
+            return False
+
+    def rToLSemiCircle(self):
+        average_point = QtCore.QPoint(0, 0)
+        for point in self.points:
+            average_point += point
+        average_point /= len(self.points)
+        print "Average point is", average_point.x(), average_point.y()
+        if self.rightToLeftMotion and \
+                self.points[-1].y() > average_point.y() + 20:
+                    return True
+        else:
+            return False
+
     def leftToRightMotion(self):
         if self.points[0].x() < self.points[-1].x() and \
             abs(self.points[0].y() - self.points[-1].y()) < 30 :
@@ -200,25 +235,84 @@ class EventListener(DroneVideoDisplay):
         else:
             return False
 
+    def downToUpMotion(self):
+        if self.points[0].y() < self.points[-1].y() and \
+            abs(self.points[0].x() - self.points[-1].x()) < 30 :
+                return True
+        else:
+            return False
+
+    def upToDownMotion(self):
+        if self.points[0].y() > self.points[-1].y() and \
+            abs(self.points[0].x() - self.points[-1].x()) < 30 :
+                return True
+        else:
+            return False
+
+    def parseGesture(self):
+        if self.circleDrawn():
+            self.gesture = self.CIRCLE
+        elif self.points[0].x() < self.points[-1].x() and \
+            abs(self.points[0].y() - self.points[-1].y()) < 30 :
+            self.gesture = self.L_TO_R
+        elif self.points[0].x() > self.points[-1].x() and \
+            abs(self.points[0].y() - self.points[-1].y()) < 30 :
+            self.gesture = self.R_TO_L
+        elif self.points[0].y() > self.points[-1].y() and \
+            abs(self.points[0].x() - self.points[-1].x()) < 30 :
+            self.gesture = self.D_TO_UP
+        elif self.points[0].y() < self.points[-1].y() and \
+            abs(self.points[0].x() - self.points[-1].x()) < 30 :
+            self.gesture = self.UP_TO_D
+
+        average_point = QtCore.QPoint(0, 0)
+        for point in self.points:
+            average_point += point
+        average_point /= len(self.points)
+        print "Average point is", average_point.x(), average_point.y()
+        if self.points[-1].y() < average_point.y() - 20:
+            if self.gesture == self.R_TO_L:
+                self.gesture = self.R_TO_L_SEMI
+            elif self.gesture == self.L_TO_R:
+                self.gesture = self.L_TO_R_SEMI
+
     def mouseReleaseEvent(self, event):
+        clear_pane = True
         if len(self.points) > 50:
-            self.resetQimages()
-            found_object, target_x, target_y = self.image_processing_func()
-            if found_object == 1:
-                if self.circleDrawn():
-                        self.publisher.publish(String("Circle " + \
-                                str(target_x) + " " + str(target_y)))
-                elif self.leftToRightMotion():
-                        self.publisher.publish(String("LToR " + \
-                                str(target_x) + " " + str(target_y)))
-                        print "Moving LToR"
-                elif self.rightToLeftMotion():
-                        self.publisher.publish(String("RToL " + \
-                                str(target_x) + " " + str(target_y)))
-                        print "Moving RToL"
+            self.parseGesture()
+            if self.gesture == self.D_TO_UP:
+                print "D_TO_UP"
+                self.publisher.publish(String("D_TO_UP"))
+            elif self.gesture == self.UP_TO_D:
+                self.publisher.publish(String("UP_TO_D"))
+                print "UP_TO_D"
+            elif self.gesture == self.L_TO_R:
+                self.publisher.publish(String("L_TO_R"))
+                print "L_TO_R"
+            elif self.gesture == self.R_TO_L:
+                self.publisher.publish(String("R_TO_L"))
+                print "R_TO_L"
+            else:
+                self.resetQimages()
+                found_object, target_x, target_y = self.image_processing_func()
+                #NOTE: Change code such that 
+                # one computation is done and bit is set.
+                if found_object == 1:
+                    clear_pane = False
+                    if self.gesture == self.CIRCLE:
+                            self.publisher.publish(String("Circle " + \
+                                    str(target_x) + " " + str(target_y)))
+                    elif self.gesture == self.L_TO_R_SEMI:
+                            self.publisher.publish(String("LToR " + \
+                                    str(target_x) + " " + str(target_y)))
+                            print "Moving LToR"
+                    elif self.gesture == self.R_TO_L_SEMI:
+                            self.publisher.publish(String("RToL " + \
+                                    str(target_x) + " " + str(target_y)))
+                            print "Moving RToL"
             self.points = []
         
-        else:
+        if clear_pane:
             if self.centralWidget.clickedLabel != -1:
                 print "label selected", self.centralWidget.clickedLabel
                 self.publisher.publish(String("Repeat " + \
@@ -233,6 +327,55 @@ class EventListener(DroneVideoDisplay):
         ypos = event.pos().y()
         print xpos, ypos
         self.points.append(event.pos())
+
+    def takeoffClicked(self):
+        controller.SendTakeoff()
+        self.publisher.publish(String("Takeoff sent"))
+
+    def landClicked(self):
+        controller.SendLand()
+        self.publisher.publish(String("Land sent"))
+
+    def turn_leftPressed(self):
+        controller.SetCommand(0, 0, 1, 0)
+
+    def turn_leftReleased(self):
+        controller.SetCommand(0, 0, 0, 0)
+
+    def turn_rightPressed(self):
+        controller.SetCommand(0, 0, -1, 0)
+
+    def turn_rightReleased(self):
+        controller.SetCommand(0, 0, 0, 0)
+
+    def createButtons(self):
+        QtGui.QToolTip.setFont(QtGui.QFont('SansSerif', 10))
+        
+        take_off_btn = QtGui.QPushButton('Takeoff', self)
+        take_off_btn.clicked.connect(self.takeoffClicked)
+        take_off_btn.setToolTip('Click here to <b>Takeoff</b>')
+        take_off_btn.resize(take_off_btn.sizeHint())
+        take_off_btn.move(640 + 10, 0)
+
+        land_btn = QtGui.QPushButton('Land', self)
+        land_btn.clicked.connect(self.landClicked)
+        land_btn.setToolTip('Click here to <b>Land</b>')
+        land_btn.resize(land_btn.sizeHint())
+        land_btn.move(640 + 6*80 + 10 + 60, 0)
+
+        turn_left = QtGui.QPushButton('Turn Left', self)
+        turn_left.pressed.connect(self.turn_leftPressed)
+        turn_left.released.connect(self.turn_leftReleased)
+        turn_left.setToolTip('Click here to <b>Turn Left</b>')
+        turn_left.resize(turn_left.sizeHint())
+        turn_left.move(640 + 10, 5*55 + 30)
+
+        turn_right = QtGui.QPushButton('Turn Right', self)
+        turn_right.pressed.connect(self.turn_rightPressed)
+        turn_right.released.connect(self.turn_rightReleased)
+        turn_right.setToolTip('Click here to <b>Turn Right</b>')
+        turn_right.resize(turn_right.sizeHint())
+        turn_right.move(640 + 6*80 + 10 + 60, 5*55 + 30)
 
     def callback(self, data):
         print rospy.get_name() + ": I heard %s" % data.data
