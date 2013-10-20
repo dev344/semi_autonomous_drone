@@ -45,6 +45,8 @@ class EventListener(DroneVideoDisplay):
     D_TO_UP     = 4
     L_TO_R      = 5
     R_TO_L      = 6
+    ZIGZAG      = 7
+    RZIGZAG     = 8
     
     def __init__(self):
         super(EventListener,self).__init__()
@@ -188,6 +190,15 @@ class EventListener(DroneVideoDisplay):
             target_x = -3.5
             target_y = -3
             found_object = 1
+
+        #  Statue
+        # 2.217, 1.635, 
+        if(average_color[0] > 150 and average_color[1] > 150 and average_color[2] > 150):
+            print "Found Statue"
+            target_x = 2.217
+            target_y = 1.635
+            found_object = 1
+
         return [found_object, target_x, target_y]
 
     def circleDrawn(self):
@@ -236,15 +247,29 @@ class EventListener(DroneVideoDisplay):
             return False
 
     def downToUpMotion(self):
-        if self.points[0].y() < self.points[-1].y() and \
+        if self.points[0].y() > self.points[-1].y() and \
             abs(self.points[0].x() - self.points[-1].x()) < 30 :
                 return True
         else:
             return False
 
     def upToDownMotion(self):
-        if self.points[0].y() > self.points[-1].y() and \
+        if self.points[0].y() < self.points[-1].y() and \
             abs(self.points[0].x() - self.points[-1].x()) < 30 :
+                return True
+        else:
+            return False
+
+    def zigzagMotion(self):
+        if (self.points[-1].y() - self.points[0].y()) > 40 and \
+            abs(self.points[0].x() - self.points[-1].x()) > 40 :
+                return True
+        else:
+            return False
+
+    def reverseZigzagMotion(self):
+        if (self.points[0].y() - self.points[-1].y()) > 40 and \
+            abs(self.points[0].x() - self.points[-1].x()) > 40 :
                 return True
         else:
             return False
@@ -252,17 +277,19 @@ class EventListener(DroneVideoDisplay):
     def parseGesture(self):
         if self.circleDrawn():
             self.gesture = self.CIRCLE
+        elif self.zigzagMotion():
+            self.gesture = self.ZIGZAG
+        elif self.reverseZigzagMotion():
+            self.gesture = self.RZIGZAG
         elif self.points[0].x() < self.points[-1].x() and \
             abs(self.points[0].y() - self.points[-1].y()) < 30 :
             self.gesture = self.L_TO_R
         elif self.points[0].x() > self.points[-1].x() and \
             abs(self.points[0].y() - self.points[-1].y()) < 30 :
             self.gesture = self.R_TO_L
-        elif self.points[0].y() > self.points[-1].y() and \
-            abs(self.points[0].x() - self.points[-1].x()) < 30 :
+        elif self.downToUpMotion() :
             self.gesture = self.D_TO_UP
-        elif self.points[0].y() < self.points[-1].y() and \
-            abs(self.points[0].x() - self.points[-1].x()) < 30 :
+        elif self.upToDownMotion() :
             self.gesture = self.UP_TO_D
 
         average_point = QtCore.QPoint(0, 0)
@@ -278,7 +305,7 @@ class EventListener(DroneVideoDisplay):
 
     def mouseReleaseEvent(self, event):
         clear_pane = True
-        if len(self.points) > 50:
+        if len(self.points) > 40:
             self.parseGesture()
             if self.gesture == self.D_TO_UP:
                 print "D_TO_UP"
@@ -292,11 +319,20 @@ class EventListener(DroneVideoDisplay):
             elif self.gesture == self.R_TO_L:
                 self.publisher.publish(String("R_TO_L"))
                 print "R_TO_L"
+            elif self.gesture == self.ZIGZAG:
+                self.resetQimages()
+                self.centralWidget.setZigzagLayout()
+                self.publisher.publish(String("ZIGZAG"))
+                print "ZIGZAG"
+            elif self.gesture == self.RZIGZAG:
+                self.resetQimages()
+                self.centralWidget.setZigzagLayout()
+                self.publisher.publish(String("RZIGZAG"))
+                print "RZIGZAG"
             else:
                 self.resetQimages()
+                self.centralWidget.setDefaultLayout()
                 found_object, target_x, target_y = self.image_processing_func()
-                #NOTE: Change code such that 
-                # one computation is done and bit is set.
                 if found_object == 1:
                     clear_pane = False
                     if self.gesture == self.CIRCLE:

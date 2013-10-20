@@ -62,6 +62,27 @@ class CentralWidget(QtGui.QWidget):
         self.clickedLabel = -1
         self.initSidePane()
 
+    def setZigzagLayout(self):
+        self.lbls[0].move(640 + 160, 0*95)
+        self.lbls[1].move(640 + 400, 0*95)
+        self.lbls[2].move(640 + 160, 1*95)
+        self.lbls[3].move(640 + 400, 1*95)
+        self.lbls[4].move(640 + 160, 2*95)
+        self.lbls[5].move(640 + 400, 2*95)
+        self.lbls[6].move(640 + 160, 3*95)
+        self.lbls[7].move(640 + 400, 3*95)
+
+    def setDefaultLayout(self):
+        self.lbls[0].move(640 + 0*80 + 10, 2.5*55)
+        self.lbls[1].move(640 + 1*80 + 10, 1*55)
+        self.lbls[2].move(640 + 3*80 + 10, 0*55)
+        self.lbls[3].move(640 + 5*80 + 10, 1*55)
+        self.lbls[4].move(640 + 6*80 + 10, 2.5*55)
+        self.lbls[5].move(640 + 5*80 + 10, 4*55)
+        self.lbls[6].move(640 + 3*80 + 10, 5*55)
+        self.lbls[7].move(640 + 1*80 + 10, 4*55)
+
+
     def initSidePane(self):
         """ Initialize the side pane for user interaction.
         """
@@ -74,14 +95,7 @@ class CentralWidget(QtGui.QWidget):
             lbl.setPixmap(pixmap.scaledToHeight(80))
             self.lbls.append(lbl)
 
-        self.lbls[0].move(640 + 0*80 + 10, 2.5*55)
-        self.lbls[1].move(640 + 1*80 + 10, 1*55)
-        self.lbls[2].move(640 + 3*80 + 10, 0*55)
-        self.lbls[3].move(640 + 5*80 + 10, 1*55)
-        self.lbls[4].move(640 + 6*80 + 10, 2.5*55)
-        self.lbls[5].move(640 + 5*80 + 10, 4*55)
-        self.lbls[6].move(640 + 3*80 + 10, 5*55)
-        self.lbls[7].move(640 + 1*80 + 10, 4*55)
+        self.setDefaultLayout()
 
 class DroneVideoDisplay(QtGui.QMainWindow):
     StatusMessages = {

@@ -20,20 +20,23 @@ class Controller():
     def __init__(self):
         """A constructor."""
         self.actions = {
-                'Circle': self.circle,
-                'Emergency': self.emergency,
-                'Takeoff': self.passFunc,
-                'Land': self.passFunc,
-                'D_TO_UP': self.moveForward,
-                'UP_TO_D': self.moveBackward,
-                'L_TO_R': self.moveLeft,
-                'R_TO_L': self.moveRight,
-                'LToR': self.lToR,
-                'RToL': self.rToL,
-                'Test': self.test,
+                'Circle'    : self.circle,
+                'Emergency' : self.emergency,
+                'Takeoff'   : self.passFunc,
+                'Land'  : self.passFunc,
+                'D_TO_UP'   : self.moveForward,
+                'UP_TO_D'   : self.moveBackward,
+                'L_TO_R'    : self.moveLeft,
+                'R_TO_L'    : self.moveRight,
+                'ZIGZAG'    : self.zigzag,
+                'RZIGZAG'   : self.rzigzag,
+                'LToR'  : self.lToR,
+                'RToL'  : self.rToL,
+                'Test'  : self.test,
                 'Repeat': self.repeat
         }
         self.history = [0, 0, 0]
+        self.action = ''
         rospy.init_node('drone_controller', anonymous=True)
         rospy.Subscriber("drone_ctrl_directions", String, self.callback)
 
@@ -139,22 +142,102 @@ class Controller():
         self.publisher2.publish(String("Snap " + str(0)))
 
     def repeat(self, args):
-        print "Position chosen", args[0]
-        dest = int(args[0])
-        param = dest - self.history[2]
-        direction = 1
-        if param < 0:
-            param += 8
-        if param > 4:
-            direction = -1
-            param = 8 - param
-        self.circleObject(self.history[0],
-                          self.history[1], 
-                          xrange(param),
-                          True, direction)
-        self.history[2] = dest
+        if self.action == 'circle':
+            print "Position chosen", args[0]
+            dest = int(args[0])
+            param = dest - self.history[2]
+            direction = 1
+            if param < 0:
+                param += 8
+            if param > 4:
+                direction = -1
+                param = 8 - param
+            self.circleObject(self.history[0],
+                              self.history[1], 
+                              xrange(param),
+                              True, direction)
+            self.history[2] = dest
+
+        elif self.action in ['zigzag', 'rzigzag']:
+            print "Z Position chosen", args[0]
+            dest = int(args[0])
+            v_dist = (dest - self.history[2])/2
+            z_dir = (dest-self.history[2])/abs(dest-self.history[2])
+            y_dir = 0
+            if (dest - self.history[2])%2 == 1:
+                if dest%2 == 0:
+                    y_dir = 1
+                else:
+                    y_dir = -1
+
+            v_dir = 0
+            if self.action == 'zigzag':
+                v_dir = -1
+            if self.action == 'rzigzag':
+                v_dir = 1
+
+            twist = Twist()
+            print v_dir, y_dir, v_dist
+            for i in xrange(abs(v_dist)):
+                twist.linear.z = v_dir*0.505*z_dir
+                for j in xrange(300):
+                    self.publisher.publish(twist)
+                    rospy.sleep(0.01)
+                twist.linear.y = 0.0
+                twist.linear.z = 0.0
+                self.publisher.publish(twist)
+
+            if y_dir != 0:
+                for j in xrange(300):
+                    twist.linear.y = 1.085*y_dir
+                    self.publisher.publish(twist)
+                    rospy.sleep(0.01)
+                twist.linear.y = 0.0
+                twist.linear.z = 0.0
+                self.publisher.publish(twist)
+
+            self.history[2] = dest
+
+    def zigzag(self, args):
+        # -1 is for down
+        self.action = 'zigzag'
+        self.doZigzag(-1)
+
+    def rzigzag(self, args):
+        # 1 is for up
+        self.action = 'rzigzag'
+        self.doZigzag(1)
+
+    def doZigzag(self, v_dir):
+        self.history[2] = (5 - (v_dir*5))/2
+
+        # May be depending on the distance from the 
+        # object, the zigzag length can be determined.
+        print "Doing zigzag"
+        mult = -1
+        zmult = 0
+        rospy.sleep(0.1)
+        self.publisher2.publish(String("Snap " + str(5 - self.history[2])))
+        for i in xrange(5):
+            twist = Twist()
+            twist.linear.y = -v_dir*1.285*mult
+            twist.linear.z = v_dir*0.605*zmult
+            zmult = (zmult+1)%2
+            for j in xrange(300):
+                self.publisher.publish(twist)
+                rospy.sleep(0.01)
+            twist.linear.y = 0.0
+            twist.linear.z = 0.0
+            self.publisher.publish(twist)
+            mult *= -1
+            rospy.sleep(0.5)
+            self.publisher2.publish(String("Snap " + \
+                    str( abs( -((v_dir*5) + 5)/2 + i+1))))
+            print i
+        print "done"
 
     def circle(self, args):
+        self.action = 'circle'
         target_x, target_y = self.precompute(args)
         self.circleObject(target_x, target_y, xrange(7+1), False, 1)
 
