@@ -8,6 +8,10 @@
 # Import the ROS libraries, and load the manifest file which through <depend package=... /> will give us access to the project dependencies
 import roslib; roslib.load_manifest('semi_autonomous_drone')
 import rospy
+import cv 
+import cv2
+import numpy as np
+from cv_bridge import CvBridge, CvBridgeError
 
 # Load the DroneController class, which handles interactions with the drone, and the DroneVideoDisplay class, which handles video display
 from drone_controller import BasicDroneController
@@ -59,6 +63,7 @@ class EventListener(DroneVideoDisplay):
         rospy.Subscriber("interface_directions", String, self.callback)
         self.createButtons()
         self.gesture = -1
+        self.bridge = CvBridge()
 
 # We add a keyboard handler to the DroneVideoDisplay to react to keypresses
     def keyPressEvent(self, event):
@@ -314,10 +319,11 @@ class EventListener(DroneVideoDisplay):
                 self.publisher.publish(String("UP_TO_D"))
                 print "UP_TO_D"
             elif self.gesture == self.L_TO_R:
-                self.publisher.publish(String("L_TO_R"))
+                # Changing temporarily
+                self.publisher.publish(String("R_TO_L"))
                 print "L_TO_R"
             elif self.gesture == self.R_TO_L:
-                self.publisher.publish(String("R_TO_L"))
+                self.publisher.publish(String("L_TO_R"))
                 print "R_TO_L"
             elif self.gesture == self.ZIGZAG:
                 self.resetQimages()
@@ -356,6 +362,31 @@ class EventListener(DroneVideoDisplay):
                 self.centralWidget.clickedLabel = -1
 
     def mouseDoubleClickEvent(self, event):
+        frame = self.bridge.imgmsg_to_cv(self.image, 'bgr8')
+        cv_image = np.array(frame, dtype=np.uint8)        
+        unclosed_gray = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
+        kernel = np.array([[1, 1, 1],[1, 1, 1],[1, 1, 1]], 'uint8')
+        kernel7 = np.ones((7,7),'uint8')
+        gray = cv2.dilate(cv2.erode(unclosed_gray, kernel7), kernel7)
+        edges = cv2.Canny(gray,50,150,apertureSize = 3)
+
+        # kernel = np.ones((3,3),'uint8')
+        dilated_edges = cv2.dilate(edges, kernel)
+
+        minLineLength = 140
+        maxLineGap = 10
+        lines = cv2.HoughLinesP(dilated_edges,1,np.pi/180,300,minLineLength,maxLineGap)
+        if lines is not None:
+            for x1,y1,x2,y2 in lines[0]:
+                cv2.line(cv_image,(x1,y1),(x2,y2),(0,255,0),2)
+        frame = cv.fromarray(cv_image)
+        edges = cv.fromarray(edges)
+        dilated_edges = cv.fromarray(dilated_edges)
+        cv.ShowImage("im window", frame)
+        cv.ShowImage("im window2", edges)
+        cv.ShowImage("im window3", dilated_edges)
+        cv.MoveWindow("im window2", 820, 60)
+        cv.MoveWindow("im window3", 820, 660)
         print "Yoda"
 
     def mouseMoveEvent(self, event):

@@ -33,6 +33,7 @@ class Controller():
                 'LToR'  : self.lToR,
                 'RToL'  : self.rToL,
                 'Test'  : self.test,
+                'Move'  : self.move,
                 'Repeat': self.repeat
         }
         self.history = [0, 0, 0]
@@ -51,6 +52,24 @@ class Controller():
 
     def land(self, args):
         pass
+
+    def move(self, args):
+        print args
+        move_distance_x = float(args[0])
+        move_distance_y = float(args[1])
+
+        # Right handed system. So, negative velocity
+        y_vel = -move_distance_y/move_distance_x
+
+        for i in xrange(int(round(100 * move_distance_x))):
+            twist = Twist()
+            twist.linear.x = 1.0
+            twist.linear.y = y_vel
+            self.publisher.publish(twist)
+            rospy.sleep(0.01)
+            twist.linear.y = 0.0
+            twist.linear.x = 0.0
+            self.publisher.publish(twist)
 
     def test(self, args):
         bot_orientation, gms, resp1 = self.find_bot_orientation()
